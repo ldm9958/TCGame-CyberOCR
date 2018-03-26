@@ -24,3 +24,5 @@ typedef struct txtInfo
 		strInfo		= L"";
 	}
 }TXT_LINE_INFO,* PTXT_LINE_INFO;
+
+std::string  stringformatA(const char* fmt, ...);

@@ -18,6 +18,74 @@ using namespace cv;
 
 #define PI		3.14159265
 #define  SAVE_PATH	 L"D:\\ml\\train"
+#define LOG
+
+
+string strLog = "";
+string strLoginfo = "";
+int g_maxAngle = 10;
+//int g_iThreadCount = 0;
+
+void Log(string str)
+{	
+#ifndef LOG
+	return;
+#endif // !LOG
+	SYSTEMTIME tm;
+	GetLocalTime(&tm);
+	string strCmd = stringformatA("echo %02d:%02d:%02d.%03d %s  >> %s",tm.wHour,tm.wMinute,tm.wSecond,tm.wMilliseconds, str.c_str(),strLog.c_str());
+	if (string::npos == strCmd.find("&"))
+	{
+		system(strCmd.c_str());
+	}
+	cout << str << endl;	
+}
+
+std::string  stringformatA(const char* fmt, ...)
+{
+	std::string s = "";
+	try
+	{
+		va_list   argptr;
+		va_start(argptr, fmt);
+#pragma warning( push )
+#pragma warning( disable : 4996 )
+		int   bufsize = _vsnprintf(NULL, 0, fmt, argptr) + 1;
+#pragma warning( pop )
+		char* buf = new char[bufsize];
+		_vsnprintf_s(buf, bufsize, _TRUNCATE, fmt, argptr);
+		s = buf;
+		delete[] buf;
+		va_end(argptr);
+	}
+	catch (...)
+	{
+		s = "TryError!";
+	}
+	return   s;
+}
+
+int stringreplace(std::string& strString, const char* src, const char* target)
+{
+	size_t nLen = 0;
+	int iPos = 0;
+	int iCount = 0;
+	while (nLen < strString.length())
+	{
+		iPos = (int)strString.find(src, nLen);
+		if (iPos >= 0)
+		{//找到了
+			iCount++;
+			strString.replace(iPos, strlen(src), target);
+			nLen = iPos + strlen(target);
+		}
+		else
+		{
+			break;
+		}
+	}
+	return iCount;
+}
 
 wstring&   replace_all_distinct(wstring&   str, const   wstring&   old_value, const   wstring&   new_value)
 {
@@ -27,6 +95,30 @@ wstring&   replace_all_distinct(wstring&   str, const   wstring&   old_value, co
 		else   break;
 	}
 	return   str;
+}
+
+std::wstring  stringformat(const wchar_t* fmt, ...)
+{
+	std::wstring s = L"";
+	try
+	{
+		va_list   argptr;
+		va_start(argptr, fmt);
+#pragma warning( push )
+#pragma warning( disable : 4996 )
+		int   bufsize = _vsnwprintf(NULL, 0, fmt, argptr) + 2;
+#pragma warning( pop )
+		wchar_t* buf = new wchar_t[bufsize];
+		_vsnwprintf_s(buf, bufsize, _TRUNCATE, fmt, argptr);
+		s = buf;
+		delete[] buf;
+		va_end(argptr);
+	}
+	catch (...)
+	{
+		s = L"TryError!";
+	}
+	return   s;
 }
 
 std::string wstr2str(const std::wstring wstrSrc, UINT CodePage/*=CP_ACP CP_UTF8*/)
@@ -120,97 +212,144 @@ std::wstring str2wstr(const std::string wstrSrc, UINT CodePage = CP_UTF8)
 	}
 	return retn;
 }
-wstring PathGetFileNameNoExt(wstring strFilePath)
+
+std::wstring Path_GetFileName(const wchar_t* strFileName)
 {
-	return strFilePath;
+	if (NULL == strFileName)
+	{
+		return L"";
+	}
+
+	std::wstring strPath = strFileName;
+	int iLast = (int)strPath.rfind(L'\\');
+	if (iLast > 0)
+	{
+		strPath.erase(0, iLast + 1);
+	}
+	if (strPath[0] == L'"')
+	{
+		strPath.erase(0, 1);
+	}
+	iLast = (int)strPath.find(L'\"');
+	if (iLast > 0)
+	{
+		strPath.erase(iLast);
+	}
+	return strPath;
 }
 
-wstring PathGetFilePath(wstring strFilePath)
+std::wstring Path_GetFileNameNoExt(const wchar_t* pFilePathName)
 {
-	return strFilePath;
+	wstring wstrFileName = Path_GetFileName(pFilePathName);
+	if (wstrFileName.length() == 0)
+	{
+		return wstrFileName;
+	}
+
+	wchar_t szFileName[MAX_PATH] = { 0 };
+	wcscpy_s(szFileName, MAX_PATH, wstrFileName.c_str());
+	::PathRemoveExtension(szFileName);
+	return szFileName;
 }
 
-
-int ScreenShotImgByPlots(std::string strImgPath, TXT_LINE_INFO info,wstring strSavePath,DWORD dwCount)
+std::wstring Path_GetFilePath(const wchar_t* strFileName)
 {
-	wstring strTemp = str2wstr(strImgPath, CP_UTF8);
-	strImgPath = wstr2str(replace_all_distinct(PathGetFilePath(strTemp), L"txt", L"image") + PathGetFileNameNoExt(strTemp) + L".jpg", CP_ACP);
-	if (!::PathFileExists(str2wstr(strImgPath, CP_ACP).c_str()))
+	if (NULL == strFileName)
 	{
-		std::cout << "File" << strImgPath.c_str() << "doesn't exist!!" << std::endl;
-		return ERROR_FILE_NOT_EXIST;
+		return L"";
 	}
-	if (info.vecPlots.size() != 8)
+	std::wstring strPath = strFileName;
+	int iLast = (int)strPath.rfind(L'\\');
+	if (iLast > 0)
 	{
-		std::cout << "Error vector  size .." << endl;
-		return ERROR_INVALID_PARAM;
+		strPath.erase(iLast + 1);
 	}
+	return strPath;
+}
 
-	double iPlotA_x = info.vecPlots[0];
-	double iPlotA_y = info.vecPlots[1];
-	double iPlotB_x = info.vecPlots[2];
-	double iPlotB_y = info.vecPlots[3];
-	double iPlotC_x = info.vecPlots[4];
-	double iPlotC_y = info.vecPlots[5];
-	double iPlotD_x = info.vecPlots[6];
-	double iPlotD_y = info.vecPlots[7];
+void RemoveSpace(string &s)
+{
 
-	int iXmin = MIN(MIN(MIN(iPlotA_x, iPlotB_x), iPlotC_x), iPlotD_x);
-	int iXmax = MAX(MAX(MAX(ceil(iPlotA_x), ceil(iPlotB_x)), ceil(iPlotC_x)), ceil(iPlotD_x));
-	int iYmin = MIN(MIN(MIN(iPlotA_y, iPlotB_y), iPlotC_y), iPlotD_y);
-	int iYmax = MAX(MAX(MAX(ceil(iPlotA_y), ceil(iPlotB_y)), ceil(iPlotC_y)), ceil(iPlotD_y));
-
-	cout << "iXmin = " << iXmin << "iXmax = " << iXmax << "iYmin = " << iYmin << "iYMax = " << iYmax << endl;
-	int iLength, iHeight = 0;
-	double DeltaX, DeltaY = 0.0;
-	Mat imgShot;
-	BOOL bNeedTrans = FALSE;
-
-	//计算生成的图片长与宽
-	iLength = (int)sqrt((iPlotA_x - iPlotD_x)*(iPlotA_x - iPlotD_x) + (iPlotA_y - iPlotD_y)*(iPlotA_y - iPlotD_y));
-	iHeight = (int)sqrt((iPlotA_x - iPlotB_x)*(iPlotA_x - iPlotB_x) + (iPlotA_y - iPlotB_y)*(iPlotA_y - iPlotB_y));
-
-	Rect roi = Rect(iXmin, iYmin, iXmax - iXmin, iYmax - iYmin);
-	cout << "height" << roi.height << "width" << roi.width << endl;
-	cout << "iLength=" << iLength << "  iHeight=" << iHeight << endl;
-
-	if (iLength == 0 || iHeight == 0)
+	if (!s.empty())
 	{
-		std::cout << "File" << strImgPath.c_str() << "param error!!" << std::endl;
-		return ERROR_INVALID_PARAM;
+		s.erase(0, s.find_first_not_of(" "));
+		s.erase(s.find_last_not_of(" ") + 1);
 	}
 
-	//对应X轴Y轴偏移量。
-	DeltaX = (iPlotD_x - iPlotA_x) / iLength;
-	DeltaY = (iPlotD_y - iPlotA_y) / iHeight;
+}
 
-	cout << "DeltaX=" << DeltaX << "  DeltaY=" << DeltaY << endl;
-	do
+int stringreplaceW(std::wstring& strString, const wchar_t* src, const wchar_t* target)
+{
+	size_t nLen = 0;
+	int iPos = 0;
+	int iCount = 0;
+	while (nLen < strString.length())
 	{
-		Mat img = imread(strImgPath.c_str());
-		Mat roiImg = img(roi);
-
-		Point center = Point(roiImg.cols / 2, roiImg.rows / 2);
-		double angle = atan((iPlotD_y - iPlotA_y) / (iPlotD_x - iPlotA_x)) * 180 / PI;
-		double scale = 1;
-		Mat rot_mat = getRotationMatrix2D(center, angle, scale);
-		warpAffine(roiImg, roiImg, rot_mat, roiImg.size());
-
-		try
-		{
-			char *s;
-			sprintf(s,"%s\\%d_%s.jpg", wstr2str(strSavePath,CP_ACP).c_str(), dwCount,info.strInfo);
-			cout << s << endl;
-			imwrite(s, roiImg);
+		iPos = (int)strString.find(src, nLen);
+		if (iPos >= 0)
+		{//找到了
+			iCount++;
+			strString.replace(iPos, wcslen(src), target);
+			nLen = iPos + wcslen(target);
 		}
-		catch (const std::exception&)
+		else
 		{
-			cout << "imwrite error" << endl;
-		}		
+			break;
+		}
+	}
+	return iCount;
+}
 
-	} while (FALSE);
-	::MessageBox(0, 0, L"hello", 0);
+vector<wstring> g_vecInvalidWord = { L"\\",L"\/",L"：",L"*",L"?",L":",L"\"",L"<",L">",L"|" };
+int IsFileNameValid(wstring& strFileName)
+{
+	if (strFileName.find(L"##"))
+	{
+		return -1;
+	}
 
+	if (stringreplaceW(strFileName, L"\\", L"#01") > 0)
+	{
+		Log("find \\");
+	}
+	if (stringreplaceW(strFileName, L"/", L"#02") > 0)
+	{
+		Log("find /");
+	}
+	if (stringreplaceW(strFileName, L":", L"#03") > 0)
+	{
+		Log("find :");
+	}
+	if (stringreplaceW(strFileName, L"*", L"#04") > 0)
+	{
+		Log("find *");
+	}
+	if (stringreplaceW(strFileName, L"?", L"#05") > 0)
+	{
+		Log("find ?");
+	}
+	if (stringreplaceW(strFileName, L"：", L"#03") > 0)
+	{
+		Log("find :");
+	}
+	if (stringreplaceW(strFileName, L"\"", L"#06") > 0)
+	{
+		Log("find \"");
+	}
+	if (stringreplaceW(strFileName, L"<", L"#07") > 0)
+	{
+		Log("find <");
+	}
+	if (stringreplaceW(strFileName, L">", L"#08") > 0)
+	{
+		Log("find >");
+	}
+	if (stringreplaceW(strFileName, L"|", L"#09") > 0)
+	{
+		Log("find |");
+	}
+
+	return 0;
 }
 
 string UTF8ToGB(const char* str)
@@ -235,6 +374,128 @@ string UTF8ToGB(const char* str)
 
 	return result;
 }
+
+int ScreenShotImgByPlots(std::string strImgPath, TXT_LINE_INFO info,wstring strSavePath,DWORD & dwCount)
+{
+	strLoginfo = stringformatA("Enter ScreenShotImgByPlots image:%s character=%s",strImgPath.c_str(),wstr2str(info.strInfo,CP_ACP).c_str());
+	Log(strLoginfo);
+	wstring strTemp = str2wstr(strImgPath, CP_UTF8);
+	strImgPath = wstr2str(replace_all_distinct(Path_GetFilePath(strTemp.c_str()), L"txt", L"image") + Path_GetFileNameNoExt(strTemp.c_str()) + L".jpg", CP_ACP);
+	if (!::PathFileExists(str2wstr(strImgPath, CP_ACP).c_str()))
+	{
+		strLoginfo = stringformatA("File %s doesn't exist!!",strImgPath.c_str());
+		Log(strLoginfo);
+		return ERROR_FILE_NOT_EXIST;
+	}
+	if (info.vecPlots.size() != 8)
+	{
+		Log("Error vector  size ..");
+		return ERROR_INVALID_PARAM;
+	}
+	
+	//有几个数据竟然是负的，坑爹！
+	double iPlotA_x = info.vecPlots[0]>0 ? info.vecPlots[0] : 0;
+	double iPlotA_y = info.vecPlots[1]>0 ? info.vecPlots[1] : 0;
+	double iPlotB_x = info.vecPlots[2]>0 ? info.vecPlots[2] : 0;
+	double iPlotB_y = info.vecPlots[3]>0 ? info.vecPlots[3] : 0;
+	double iPlotC_x = info.vecPlots[4]>0 ? info.vecPlots[4] : 0;
+	double iPlotC_y = info.vecPlots[5]>0 ? info.vecPlots[5] : 0;
+	double iPlotD_x = info.vecPlots[6]>0 ? info.vecPlots[6] : 0;
+	double iPlotD_y = info.vecPlots[7]>0 ? info.vecPlots[7] : 0;
+
+	int iXmin = MIN(MIN(MIN(iPlotA_x, iPlotB_x), iPlotC_x), iPlotD_x);
+	int iXmax = MAX(MAX(MAX(ceil(iPlotA_x), ceil(iPlotB_x)), ceil(iPlotC_x)), ceil(iPlotD_x));
+	int iYmin = MIN(MIN(MIN(iPlotA_y, iPlotB_y), iPlotC_y), iPlotD_y);
+	int iYmax = MAX(MAX(MAX(ceil(iPlotA_y), ceil(iPlotB_y)), ceil(iPlotC_y)), ceil(iPlotD_y));
+
+	strLoginfo = stringformatA("iXmin = %d,iXmax = %d, iYmin = %d, iYmax = %d",iXmin,iXmax,iYmin,iYmax);
+	Log(strLoginfo);
+	int iLength, iHeight = 0;
+	double DeltaX, DeltaY = 0.0;
+	Mat imgShot;
+	BOOL bNeedTrans = FALSE;
+
+	strLoginfo = stringformatA("Before computing ...");
+	Log(strLoginfo);
+	//计算生成的图片长与宽
+	iLength = (int)sqrt((iPlotA_x - iPlotD_x)*(iPlotA_x - iPlotD_x) + (iPlotA_y - iPlotD_y)*(iPlotA_y - iPlotD_y));
+	iHeight = (int)sqrt((iPlotA_x - iPlotB_x)*(iPlotA_x - iPlotB_x) + (iPlotA_y - iPlotB_y)*(iPlotA_y - iPlotB_y));
+
+	Rect roi = Rect(iXmin, iYmin, iXmax - iXmin, iYmax - iYmin);
+	strLoginfo = stringformatA("ROI height = %d, width = %d, iLength = %d ,iHeight = %d",roi.height,roi.width,iLength,iHeight);
+	Log(strLoginfo);
+
+	if (iLength == 0 || iHeight == 0)
+	{
+		strLoginfo = stringformatA("File %s param error",strImgPath.c_str());
+		Log(strLoginfo);
+		return ERROR_INVALID_PARAM;
+	}
+	strLoginfo = stringformatA("After computing ...  ");
+	Log(strLoginfo);
+	//对应X轴Y轴偏移量。
+	DeltaX = (iPlotD_x - iPlotA_x) / iLength;
+	DeltaY = (iPlotD_y - iPlotA_y) / iHeight;
+
+	strLoginfo = stringformatA("DeltaX = %.4f, DeltaY = %.4f",DeltaX,DeltaY);
+	Log(strLoginfo);
+	do
+	{		
+		Mat img = imread(strImgPath.c_str());
+		if (iXmax > img.cols || iYmax > img.rows)
+		{
+			Log("Invalid shot size");
+			return -1;
+		}		
+		if (!img.data)
+		{
+			strLoginfo = stringformatA("Read file %s error",strImgPath.c_str());
+			Log(strLoginfo);
+			return -1;
+		}
+		
+		double angle = atan((iPlotD_y - iPlotA_y) / (iPlotD_x - iPlotA_x)) * 180 / PI;
+		if (angle > g_maxAngle || angle < -g_maxAngle)
+		{
+			Log("invalid angle");
+			return ERROR_INVALID_PARAM;
+		}
+		Mat roiImg = img(roi);
+		Point center = Point(roiImg.cols / 2, roiImg.rows / 2);
+		
+		double scale = 1;
+		strLoginfo = stringformatA("Before getRotationMatrix2D ...");
+		Log(strLoginfo);
+		Mat rot_mat = getRotationMatrix2D(center, angle, scale);
+		strLoginfo = stringformatA("Before warpAffine ...");
+		Log(strLoginfo);
+		if (roiImg.cols <= 0 || roiImg.rows <= 0)
+		{
+			Log("Error roiImg size..");
+			return -1;
+		}
+		warpAffine(roiImg, roiImg, rot_mat, roiImg.size());
+		strLoginfo = stringformatA("After warpAffine ...");
+		Log(strLoginfo);
+		try
+		{
+			IsFileNameValid(info.strInfo);
+			string strRealSavePath = stringformatA("%s\\%d_%s.jpg", UTF8ToGB(wstr2str(strSavePath, CP_UTF8).c_str()), dwCount, UTF8ToGB(wstr2str(info.strInfo, CP_UTF8).c_str()));
+			imwrite(strRealSavePath.c_str(), roiImg);
+			strLoginfo = stringformatA("Writer image successfully %s",strRealSavePath.c_str());
+			Log(strLoginfo);
+			dwCount++;
+		}
+		catch (const std::exception&)
+		{
+			Log("write file error");
+		}		
+
+	} while (FALSE);
+
+	return 0;
+}
+
 
 int SplitTxtInfo(wstring strTxtLine, TXT_LINE_INFO &info)
 {
@@ -263,6 +524,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	wstring strPath = L"";
 	wstring strSavePath = L"D:\\ml\\train";
 	vector<wstring> vecAllFile;
+	SYSTEMTIME tm;
+	GetLocalTime(&tm);
+	strLog = stringformatA("c:\\log__%02d_%02d_%02d_%02d_%02d_%02d.txt", tm.wYear, tm.wMonth, tm.wDay, tm.wHour, tm.wMinute, tm.wSecond);
+	Log("start");
+
 	vecAllFile.clear();
 	if (argv[1])
 	{
@@ -279,16 +545,19 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
 	wstring strMsg = L"TXT文件存储路径为：" + strPath + L"图片存储路径为：" + strSavePath + L"\n 是否立即开始处理训练集?";	
-	if (IDOK != ::MessageBox(0, strMsg.c_str(),L"提示",0))
+	if (IDOK != ::MessageBox(0, strMsg.c_str(),L"提示", MB_OKCANCEL))
 	{
 		return -1;
 	}
 
 	string strTarget = ".txt";
-	cout << "Scan all " << strTarget.c_str() << "files in " << wstr2str(strPath, CP_ACP).c_str() << endl;
-	GetFoldAllDecFile(strPath, vecAllFile, str2wstr(strTarget, CP_UTF8));
+	strLoginfo = stringformatA("Scan all %s files in %s", strTarget.c_str(), wstr2str(strPath, CP_ACP).c_str());
+	Log(strLoginfo);
 
-	cout << "Scan finished , find " << vecAllFile.size() << "files totally.." << endl;
+	//获取路径下全部Txt文件
+	GetFoldAllDecFile(strPath, vecAllFile, str2wstr(strTarget, CP_UTF8));
+	strLoginfo = stringformatA("Scan finished  , find %d files totally", vecAllFile.size());
+
 	if (vecAllFile.size() == 0)
 	{
 		return -1;
@@ -303,14 +572,25 @@ int _tmain(int argc, _TCHAR* argv[])
 	{
 		i = 1;
 		ifile.open(wstr2str(*iter, CP_ACP).c_str());
-		cout << "Open " << k << " file " << wstr2str(*iter, CP_ACP).c_str() << endl;
-
+		strLoginfo = stringformatA("No.%d file ,Start dealing with file %s",k, wstr2str(*iter, CP_ACP).c_str());
+		Log(strLoginfo);
 		while (std::getline(ifile, line)) {
-			cout <<"	"<< i << "line" << UTF8ToGB(line.c_str()).c_str() << endl;
-			SplitTxtInfo(str2wstr(UTF8ToGB(line.c_str()).c_str()), info);
-			ScreenShotImgByPlots(wstr2str(*iter, CP_ACP).c_str(), info , strSavePath ,dwCount);
+			strLoginfo = stringformatA("    %d line :%s",i, UTF8ToGB(line.c_str()).c_str());
+			Log(strLoginfo);
+			if (0 != SplitTxtInfo(str2wstr(line).c_str(), info))
+			{
+				Log("split error, continue!");
+				continue;
+			}
+			if (0 != ScreenShotImgByPlots(wstr2str(*iter, CP_ACP).c_str(), info, strSavePath, dwCount))
+			{
+				Log("ScreenShotImgByPlots error, continue!");
+				continue;
+			}			
 			i++;
 		}
+		strLoginfo = stringformatA("End dealing with file %s", wstr2str(*iter, CP_ACP).c_str());
+		Log(strLoginfo);
 		ifile.close();
 	}
 
